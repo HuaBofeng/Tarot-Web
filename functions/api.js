@@ -3,8 +3,8 @@ export async function onRequestPost({ request, env }) {
     // 1. 获取前端传来的占卜数据
     const { text, pms } = await request.json();
 
-    // 2. 调用你指定的最新 GLM-4.7-Flash 模型
-    // 注意：这里使用了你提供的官方路径 @cf/zai-org/glm-4.7-flash
+    // 2. 调用 GLM-4.7-Flash 模型
+    // 注意：这里使用官方路径 @cf/zai-org/glm-4.7-flash
     const result = await env.AI.run("@cf/zai-org/glm-4.7-flash", {
       messages: [
         {
@@ -16,7 +16,6 @@ export async function onRequestPost({ request, env }) {
           content: `卡牌数组是：${JSON.stringify(pms)}，问题是：'${text}？'，请帮我解析`
         }
       ],
-      // 保持你原有的参数偏好，确保回复的稳定性
       temperature: 0,
       presence_penalty: 0,
       frequency_penalty: 0,
