@@ -19,31 +19,35 @@
       </div>
       <Alert class="mt-4" v-if="resStatus">
         <AlertTitle>塔罗牌解析：</AlertTitle>
-        <AlertDescription><p class="[&>p]:indent-8 [&>p]:pt-2" ref="typedText"></p></AlertDescription>
+        <AlertDescription>
+          <div class="[&>p]:indent-8 [&>p]:pt-2" v-html="renderedHTML"></div>
+        </AlertDescription>
       </Alert>
-      <Button class="mt-4 ml-auto block w-max" @click="resetFn">重新开始</Button>
+      <Button class="mt-4 ml-auto block w-max" :disabled="isStreaming" @click="resetFn">重新开始</Button>
     </div>
   </section>
 </template>
+
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import vh from 'vh-plugin'
 import { marked } from 'marked'
-import Typed from 'typed.js'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 
-// 随机卡牌
 const randomCard = ref<number[]>(Array.from({ length: 22 }, (_, i) => i))
-// Fisher-Yates 洗牌算法
-for (let i = randomCard.value.length - 1; i > 0; i--) {
-  const j = Math.floor(Math.random() * (i + 1))
-  ;[randomCard.value[i], randomCard.value[j]] = [randomCard.value[j], randomCard.value[i]]
-}
-
-// 选择卡牌
 const selectCardArr = ref<Array<any>>([])
+const textValue = ref<string>('')
+const loadingStatus = ref<boolean>(false)
+const resStatus = ref<boolean>(false)
+const isStreaming = ref<boolean>(false) // 是否正在流式传输
+
+// 响应式存储 AI 返回的纯文本
+const rawText = ref<string>('')
+// 计算属性：将纯文本实时转为 HTML
+const renderedHTML = computed(() => marked.parse(rawText.value))
+
 const selectCard = (id: number) => {
   if (selectCardArr.value.includes(id)) {
     selectCardArr.value = selectCardArr.value.filter((i) => i !== id)
@@ -53,29 +57,64 @@ const selectCard = (id: number) => {
   selectCardArr.value.push(id)
 }
 
-// 获取解析
-const textValue = ref<string>('')
-const loadingStatus = ref<boolean>(false)
-const resStatus = ref<boolean>(false)
 const getRes = async () => {
   loadingStatus.value = true
-  selectCardArr.value = selectCardArr.value.map((i) => ({ no: i, isReversed: Math.random() > 0.5 }))
-  vh.showLoading()
-  const res = await fetch('/api', { method: 'POST', body: JSON.stringify({ text: textValue.value, pms: selectCardArr.value }) })
-  vh.hideLoading()
   resStatus.value = true
-  const resText = await res.text()
-  renderRES(resText)
+  rawText.value = "" // 重置内容
+  
+  // 记录选中的牌并随机正逆位
+  selectCardArr.value = selectCardArr.value.map((no) => ({ 
+    no, 
+    isReversed: Math.random() > 0.5 
+  }))
+
+  try {
+    const response = await fetch('/api', { 
+      method: 'POST', 
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: textValue.value, pms: selectCardArr.value }) 
+    })
+
+    if (!response.ok) throw new Error('网络请求失败')
+
+    const reader = response.body?.getReader()
+    const decoder = new TextDecoder()
+    if (!reader) return
+
+    isStreaming.value = true
+    
+    // 循环读取流数据
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      const chunk = decoder.decode(value, { stream: true })
+      const lines = chunk.split("\n")
+
+      for (const line of lines) {
+        if (line.startsWith("data: ")) {
+          const dataStr = line.slice(6).trim()
+          if (dataStr === "[DONE]") break
+          
+          try {
+            const json = JSON.parse(dataStr)
+            // Cloudflare Workers AI GLM 流模式返回内容在 response 字段
+            if (json.response) {
+              rawText.value += json.response
+            }
+          } catch (e) {
+            // 忽略碎片化的 JSON
+          }
+        }
+      }
+    }
+  } catch (err: any) {
+    rawText.value = "解析出错：" + err.message
+  } finally {
+    isStreaming.value = false
+  }
 }
 
-// 渲染后的 HTML 内容
-const typedText = ref<HTMLParagraphElement>()
-const renderRES = async (md: string) => {
-  const renderedMarkdown = await marked.parse(md)
-  new Typed(typedText.value, { strings: [renderedMarkdown], typeSpeed: 16, showCursor: false })
-}
-
-// 重置
 const resetFn = async () => {
   vh.showLoading()
   await new Promise((resolve) => setTimeout(resolve, 666))
@@ -83,6 +122,8 @@ const resetFn = async () => {
   textValue.value = ''
   resStatus.value = false
   loadingStatus.value = false
+  rawText.value = ""
+  // 洗牌
   for (let i = randomCard.value.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1))
     ;[randomCard.value[i], randomCard.value[j]] = [randomCard.value[j], randomCard.value[i]]
@@ -90,10 +131,5 @@ const resetFn = async () => {
   vh.hideLoading()
 }
 
-// 动态渲染卡牌
 const renderIMG = (url: string) => new URL(`../../assets/images/card/${url}`, import.meta.url).href
 </script>
-
-<style scoped lang="less">
-@import 'Home.less';
-</style>
