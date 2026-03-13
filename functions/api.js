@@ -1,11 +1,9 @@
 export async function onRequestPost({ request, env }) {
   try {
-    // 1. 获取前端传来的占卜数据
     const { text, pms } = await request.json();
 
-    // 2. 调用 GLM-4.7-Flash 模型
-    // 注意：这里使用官方路径 @cf/zai-org/glm-4.7-flash
-    const result = await env.AI.run("@cf/zai-org/glm-4.7-flash", {
+    // 1. 调用模型并开启 stream
+    const stream = await env.AI.run("@cf/zai-org/glm-4.7-flash", {
       messages: [
         {
           role: "system",
@@ -16,22 +14,22 @@ export async function onRequestPost({ request, env }) {
           content: `卡牌数组是：${JSON.stringify(pms)}，问题是：'${text}？'，请帮我解析`
         }
       ],
-      temperature: 0,
-      presence_penalty: 0,
-      frequency_penalty: 0,
-      top_p: 1
+      stream: true // 核心修改：开启流模式
     });
 
-    // 3. 根据该模型的 Output 架构解析返回结果
-    // 根据文档，该模型返回标准 OpenAI 格式，内容在 choices[0].message.content 中
-    if (result && result.choices && result.choices[0] && result.choices[0].message) {
-      return new Response(result.choices[0].message.content);
-    } else {
-      return new Response("AI 未能生成有效回复，请检查后台绑定或额度", { status: 500 });
-    }
+    // 2. 返回流，并设置正确的 SSE Header
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+      },
+    });
 
   } catch (err) {
-    // 捕获所有异常，彻底告别 1101 错误页
-    return new Response(`Worker 内部错误: ${err.message}`, { status: 500 });
+    return new Response(JSON.stringify({ error: err.message }), { 
+      status: 500,
+      headers: { "Content-Type": "application/json" }
+    });
   }
 }
