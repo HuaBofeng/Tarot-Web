@@ -2,7 +2,7 @@ export async function onRequestPost({ request, env }) {
   try {
     const { text, pms } = await request.json();
 
-    const stream = await env.AI.run("@cf/zai-org/glm-4.7-flash", {
+    const stream = await env.AI.run("xiaomi/mimo-v2.6-pro", {
       messages: [
         {
           role: "system",
