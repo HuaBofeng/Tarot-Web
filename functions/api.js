@@ -2,13 +2,10 @@ export async function onRequestPost({ request, env }) {
   try {
     const { text = "", pms = [] } = await request.json();
 
-    const stream = await env.AI.run(
-      "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+    const messages = [
       {
-        messages: [
-          {
-            role: "system",
-            content: `你是一位专业的塔罗牌大师。
+        role: "system",
+        content: `你是一位专业的塔罗牌大师。
 
 使用22张大阿尔克那牌：
 
@@ -35,7 +32,7 @@ export async function onRequestPost({ request, env }) {
 20 审判
 21 世界
 
-用户会传入卡牌数组：
+用户会提供卡牌数组：
 
 {
   "no": 牌编号,
@@ -44,43 +41,33 @@ export async function onRequestPost({ request, env }) {
 
 要求：
 
-1. 将数字牌号转换为对应牌名。
-2. 正位和逆位分别解释。
-3. 结合用户问题分析。
-4. 语言自然，像资深塔罗师。
-5. 不要提及AI、模型、算法等内容。
-6. 不要输出数字牌号。
+1. 将数字转换为对应牌名。
+2. 说明正位或逆位含义。
+3. 结合用户问题综合分析。
+4. 使用自然、专业、神秘的塔罗师语气。
+5. 不要显示数字编号。
+6. 不要提及AI。
 7. 最后单独输出：
 
 概率：XX%
 
-其中XX必须是0-100之间的整数。
+XX必须为0-100整数。
 
-输出格式示例：
-
-【牌面解析】
-
-愚者（正位）
-......
-
-恋人（逆位）
-......
-
-【综合解读】
-
-......
-
-概率：78%`
-          },
-          {
-            role: "user",
-            content: `卡牌数组：${JSON.stringify(pms)}
+除了解析内容外不要输出其它说明。`
+      },
+      {
+        role: "user",
+        content: `卡牌数组：${JSON.stringify(pms)}
 
 问题：${text}`
-          }
-        ],
+      }
+    ];
+
+    const stream = await env.AI.run(
+      "@cf/meta/llama-4-scout-17b-16e-instruct",
+      {
+        messages,
         temperature: 0.7,
-        max_tokens: 2048,
         stream: true
       }
     );
@@ -95,6 +82,7 @@ export async function onRequestPost({ request, env }) {
   } catch (err) {
     return Response.json(
       {
+        success: false,
         error: err.message
       },
       {
