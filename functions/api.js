@@ -2,7 +2,7 @@ export async function onRequestPost({ request, env }) {
   try {
     const { text, pms } = await request.json();
 
-    const stream = await env.AI.run("@cf/deepseek-ai/deepseek-v4.1-flash-1017", {
+    const stream = await env.AI.run("@cf/zai-org/glm-4.7-flash", {
       messages: [
         {
           role: "system",
