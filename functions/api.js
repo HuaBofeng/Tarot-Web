@@ -5,7 +5,7 @@ export async function onRequestPost({ request, env }) {
 
     // 2. 调用 GLM-4.7-Flash 模型
     // 注意：这里使用官方路径 @cf/zai-org/glm-4.7-flash
-    const result = await env.AI.run("@cf/meta/llama-4-scout-17b-16e-instruct", {
+    const result = await env.AI.run("@cf/zai-org/glm-4.7-flash", {
       messages: [
         {
           role: "system",
